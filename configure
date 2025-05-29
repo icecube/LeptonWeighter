@@ -451,7 +451,7 @@ if [ "$HDF5_INCDIR" -a "$HDF5_LIBDIR" ]; then
          -a -e "$HDF5_LIBDIR/libhdf5_cpp.a" ]; then
 		HDF5_FOUND=1
 		HDF5_CFLAGS="-I$HDF5_INCDIR"
-		HDF5_LDFLAGS="-L$HDF5_LIBDIR -lhdf5 -libhdf5_cpp"
+		HDF5_LDFLAGS="-L$HDF5_LIBDIR -lhdf5 -lhdf5_hl -libhdf5_cpp"
 	else
         echo "Warning: manually specifed HDF5 not found; will attempt auto detection"
 	fi
@@ -687,7 +687,7 @@ echo "CFITSIO_CFLAGS=$CFITSIO_CFLAGS" >> ./Makefile
 echo "CFITSIO_LDFLAGS=$CFITSIO_LDFLAGS" >> ./Makefile
 
 echo "HDF5_CFLAGS=$HDF5_CFLAGS" >> ./Makefile
-echo "HDF5_LDFLAGS=$HDDF5_LDFLAGS" >> ./Makefile
+echo "HDF5_LDFLAGS=$HDF5_LDFLAGS -lhdf5_hl" >> ./Makefile
 
 if [ "$BOOST_PYTHON_FOUND" ]; then
 	echo "PYTHON_CFLAGS=$PYTHON_CFLAGS" >> ./Makefile
@@ -734,15 +734,15 @@ build/%.o : private/LeptonWeighter/%.cpp
 
 resources/example/main.exe: resources/example/main.cpp
 	@echo Compiling simple example
-	$(CXX) $(CXXFLAGS) -I$(INC_LW) resources/example/main.cpp -L./lib -lLeptonWeighter $(LDFLAGS) -o $@
+	$(CXX) $(EXAMPLES_FLAGS) resources/example/main.cpp -L./lib -lLeptonWeighter $(LDFLAGS) -o $@
 
 resources/example/main_with_nusquids.exe: resources/example/main_with_nusquis.cpp
 	@echo Compiling simple example with nusquids
-	@$(CXX) $(CXXFLAGS) -I$(INC_LW) resources/example/main_with_nusquids.cpp -L./lib -lLeptonWeighter $(LDFLAGS) -o $@
+	@$(CXX) $(EXAMPLES_FLAGS) resources/example/main_with_nusquids.cpp -L./lib -lLeptonWeighter $(LDFLAGS) -o $@
 
 resources/example/read_lic.exe: resources/example/read_lic.cpp
 	@echo Compiling lic reader
-	@$(CXX) $(CXXFLAGS) -I$(INC_LW) resources/example/read_lic.cpp -L./lib -lLeptonWeighter $(LDFLAGS) -o $@
+	@$(CXX) $(EXAMPLES_FLAGS) resources/example/read_lic.cpp -L./lib -lLeptonWeighter $(LDFLAGS) -o $@
 
 .PHONY: install uninstall clean test docs
 clean:

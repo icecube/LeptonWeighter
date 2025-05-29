@@ -1,6 +1,7 @@
 #include <iostream>
 #include <fstream>
-#include <boost/detail/endian.hpp>
+//#include <boost/detail/endian.hpp>
+#include <boost/predef/other/endian.h>
 #include <boost/lexical_cast.hpp>
 #include <boost/format.hpp>
 #include <boost/math/constants/constants.hpp>
