@@ -1,7 +1,11 @@
 #include <iostream>
 #include <fstream>
-//#include <boost/detail/endian.hpp>
-#include <boost/predef/other/endian.h>
+#include <boost/version.hpp>
+#if BOOST_VERSION < 107200
+	#include <boost/detail/endian.hpp>
+#else
+	#include <boost/predef/other/endian.h>
+#endif
 #include <boost/lexical_cast.hpp>
 #include <boost/format.hpp>
 #include <boost/math/constants/constants.hpp>

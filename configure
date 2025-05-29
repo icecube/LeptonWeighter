@@ -736,7 +736,7 @@ resources/example/main.exe: resources/example/main.cpp
 	@echo Compiling simple example
 	$(CXX) $(EXAMPLES_FLAGS) resources/example/main.cpp -L./lib -lLeptonWeighter $(LDFLAGS) -o $@
 
-resources/example/main_with_nusquids.exe: resources/example/main_with_nusquis.cpp
+resources/example/main_with_nusquids.exe: resources/example/main_with_nusquids.cpp
 	@echo Compiling simple example with nusquids
 	@$(CXX) $(EXAMPLES_FLAGS) resources/example/main_with_nusquids.cpp -L./lib -lLeptonWeighter $(LDFLAGS) -o $@
 
