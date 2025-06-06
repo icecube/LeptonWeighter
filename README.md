@@ -47,7 +47,7 @@ The examples can be found in resources/example.
 
 # Detailed Installation Instructions
 
-These instructions are written under the assumption that you are installing LeptonWeighter on the Cobalts. 
+These instructions are written under the assumption that you are installing LeptonWeighter on a system that has access to IceCube CVMFS toolkit. 
 
 1. Create a directory for your libraries and headers. Call it `$INSTALL`, or whatever you prefer. 
 
