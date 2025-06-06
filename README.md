@@ -3,7 +3,7 @@ Weights injected neutrino final states to neutrino fluxes.
 
 Author: C.A. Arg\"uelles
 
-Reviewer: A. Schneider
+Reviewer: A. Schneider, B. Smithers
 
 If there are any problems do not hesitate to email: carguelles@fas.harvard.edu
 
@@ -43,7 +43,23 @@ which will print the options to supply the missing libraries.
 
 # Examples
 
-The examples can be found in resources/example.
+The examples can be found in resources/example. To compile the examples type
+
+```
+make examples
+```
+
+For the examples, a small Monte Carlo event set has been provided in `/resources/examples/`. The following examples are provided
+
+1. example.py: Reads events in provided hdf5 file and prints the weight associate to each event assuming fluxes given in nuSQuIDS format files.
+
+2. LI_example.py: Reads the events and computes the weight for a power-lae spectra.
+
+3. main.cpp: same functionality as LI_example.py, but with the c++ interface.
+
+4. main_with_nusquids.cpp: same functionality as example.py, but with the c++ interface.
+
+5. read_lic.cpp: reads the Lepton Injector Configuration (LIC) file, which outputs the generated Monte Carlo settings.
 
 # Detailed Installation Instructions for IceCube Users
 
