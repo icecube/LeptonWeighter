@@ -38,7 +38,7 @@ If the configure fails to find any of the required libraries do
 ./configure --help
 ```
 
-which will print the options to supply the missing libraries. 
+which will print the options to supply the required libraries. 
 
 
 # Examples
