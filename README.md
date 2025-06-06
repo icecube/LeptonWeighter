@@ -45,7 +45,7 @@ which will print the options to supply the missing libraries.
 
 The examples can be found in resources/example.
 
-# Detailed Installation Instructions
+# Detailed Installation Instructions for IceCube Users
 
 These instructions are written under the assumption that you are installing LeptonWeighter on a system that has access to IceCube CVMFS toolkit. 
 
