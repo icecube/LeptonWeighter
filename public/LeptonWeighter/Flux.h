@@ -20,6 +20,7 @@ class Flux: public MetaWeighter<Flux> {
         using result_type=double;
         virtual result_type EvaluateFlux(const Event&) const = 0;
         result_type operator()(const Event& e) const { return EvaluateFlux(e);};
+        virtual void EnableAveragedEval(double) {};
 };
 
 ///\class
