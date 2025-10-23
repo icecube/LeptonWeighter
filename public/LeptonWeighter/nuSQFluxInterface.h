@@ -26,7 +26,7 @@ class nuSQUIDSAtmFlux: public Flux {
         // switch and defaults for the averaged EvalFlavor overload
         bool use_averaged_eval = false;
         double averaged_scale_default = 0.0;
-        std::vector<bool> averaged_avr_default;
+        mutable std::vector<bool> averaged_avr_default;
     protected:
         nusquids::nuSQUIDSAtm<BaseType> nsqa;
     public:
@@ -34,20 +34,21 @@ class nuSQUIDSAtmFlux: public Flux {
         result_type EvaluateFlux(const Event& e) const override {
           auto nusq_id = Convert_PDG_Id_To_nuSQuIDS_Id(e.primary_type);
           if(use_averaged_eval){
-              return nsqa.EvalFlavor(nusq_id.first, std::cos(e.zenith), e.energy*GeV,
-                                     nusq_id.second, averaged_scale_default, averaged_avr_default);
+            if (averaged_avr_default.size() != nsqa.GetNumNeu()) {
+                averaged_avr_default.assign(nsqa.GetNumNeu(), true);
+            }
+            return nsqa.EvalFlavor(nusq_id.first, std::cos(e.zenith), e.energy*GeV,
+                                    nusq_id.second, averaged_scale_default, averaged_avr_default);
           } else {
-              return nsqa.EvalFlavor(nusq_id.first, std::cos(e.zenith), e.energy*GeV,
-                                     nusq_id.second, atmospheric_height_randomization);
+            return nsqa.EvalFlavor(nusq_id.first, std::cos(e.zenith), e.energy*GeV,
+                                    nusq_id.second, atmospheric_height_randomization);
           }
         };
         // runtime control for which EvalFlavor EvaluateFlux forwards to
         void EnableAveragedEval(double scale = 0.0) override {
             use_averaged_eval = true;
             averaged_scale_default = scale;
-            // size_t nE = nsqa.GetNumE();
-            // std::vector<bool> avr(nE, true);
-            // averaged_avr_default = std::move(avr);
+            averaged_avr_default.assign(nsqa.GetNumNeu(), true);
         }
         explicit nuSQUIDSAtmFlux(const std::string & nusquids_data_file_path, bool atmospheric_height_randomization = false): nsqa(nusquids::nuSQUIDSAtm<BaseType>(nusquids_data_file_path)), atmospheric_height_randomization(atmospheric_height_randomization) {};
         explicit nuSQUIDSAtmFlux(nusquids::nuSQUIDSAtm<BaseType>&& nsqa, bool atmospheric_height_randomization = false): nsqa(std::move(nsqa)), atmospheric_height_randomization(atmospheric_height_randomization) {};
