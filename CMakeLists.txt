@@ -92,28 +92,19 @@ set(CONFIGURE_ARGS
 )
 
 # Add optional nuSQuIDS support
+# Note: We don't pass --with-squids or --with-nusquids because the configure
+# script's manual path doesn't include GSL. By omitting these, configure will
+# use pkg-config which properly includes GSL dependencies.
 if(NUSQUIDS_FOUND AND SQUIDS_FOUND)
-    message(STATUS "nuSQuIDS found - enabling nuSQuIDS features")
-    list(GET NUSQUIDS_INCLUDE_DIRS 0 NUSQUIDS_INCLUDE_DIR)
-    get_filename_component(NUSQUIDS_PREFIX "${NUSQUIDS_INCLUDE_DIR}" DIRECTORY)
-    list(GET SQUIDS_INCLUDE_DIRS 0 SQUIDS_INCLUDE_DIR)
-    get_filename_component(SQUIDS_PREFIX "${SQUIDS_INCLUDE_DIR}" DIRECTORY)
-    list(APPEND CONFIGURE_ARGS
-        --with-squids=${SQUIDS_PREFIX}
-        --with-nusquids=${NUSQUIDS_PREFIX}
-    )
+    message(STATUS "nuSQuIDS found via pkg-config - nuSQuIDS features will be enabled")
 else()
     message(STATUS "nuSQuIDS not found - building without nuSQuIDS features")
 endif()
 
 # Add optional nuflux support
+# Note: Like SQuIDS, we let configure find nuflux via pkg-config
 if(NUFLUX_FOUND)
-    message(STATUS "nuflux found - enabling nuflux features")
-    list(GET NUFLUX_INCLUDE_DIRS 0 NUFLUX_INCLUDE_DIR)
-    get_filename_component(NUFLUX_PREFIX "${NUFLUX_INCLUDE_DIR}" DIRECTORY)
-    list(APPEND CONFIGURE_ARGS
-        --with-nuflux=${NUFLUX_PREFIX}
-    )
+    message(STATUS "nuflux found via pkg-config - nuflux features will be enabled")
 else()
     message(STATUS "nuflux not found - building without nuflux features")
 endif()
