@@ -139,36 +139,63 @@ try_find_python(){
 	fi
 
 	PYTHON_CFLAGS="-I${PYTHON_INCDIR}"
-	PYTHON_LDFLAGS="-L${PYTHON_LIBDIR} -l$(echo "$PYTHON_LIBRARY" | sed 's|.*lib\(python.*\)\.[a-z]*|\1|')"
+	# On macOS with pybind11, use -undefined dynamic_lookup instead of linking to libpython
+	# This avoids issues with multiple Python interpreters and is the recommended approach
+	if [ "$OS_NAME" = "Darwin" ]; then
+		PYTHON_LDFLAGS="-undefined dynamic_lookup"
+	else
+		PYTHON_LDFLAGS="-L${PYTHON_LIBDIR} -l$(echo "$PYTHON_LIBRARY" | sed 's|.*lib\(python.*\)\.[a-z]*|\1|')"
+	fi
 	PYTHON_FOUND=1
 }
 
+# Find boost headers (and optionally boost_python library)
+# Pass "python" as second/third argument to also search for libboost_python
 try_find_boost(){
 	PKG=boost
 	VAR_PREFIX=`echo $PKG | tr [:lower:] [:upper:]`
 	TMP_FOUND=`eval echo "$"${VAR_PREFIX}_FOUND`
 	if [ "$TMP_FOUND" ]; then return; fi
-	if [ "$PYTHON_FOUND" ]; then
-		PYV=`${PYTHON_EXE} -c 'import sys; print(str(sys.version_info.major)+str(sys.version_info.minor))'`
-		PYVM=`${PYTHON_EXE} -c 'import sys; print(sys.version_info.major)'`
-		echo "Looking for $PKG built for python ${PYV} in $GUESS_DIR..."
-	else
-		echo "Looking for $PKG in $GUESS_DIR..."
-	fi
-	
- 	if [ "$#" -eq 1 ]; then
- 		GUESS_DIR=$1
- 		POSSIBLE_BOOST_LIBDIRS="${GUESS_DIR}/lib ${GUESS_DIR}/lib64 ${GUESS_DIR}/lib/x86_64-linux-gnu"
+
+	# Parse arguments
+	FIND_BOOST_PYTHON=""
+	if [ "$#" -eq 1 ]; then
+		GUESS_DIR=$1
+		POSSIBLE_BOOST_LIBDIRS="${GUESS_DIR}/lib ${GUESS_DIR}/lib64 ${GUESS_DIR}/lib/x86_64-linux-gnu"
 		POSSIBLE_BOOST_INCDIRS="${GUESS_DIR}/include"
 	elif [ "$#" -eq 2 ]; then
+		if [ "$2" = "python" ]; then
+			GUESS_DIR=$1
+			POSSIBLE_BOOST_LIBDIRS="${GUESS_DIR}/lib ${GUESS_DIR}/lib64 ${GUESS_DIR}/lib/x86_64-linux-gnu"
+			POSSIBLE_BOOST_INCDIRS="${GUESS_DIR}/include"
+			FIND_BOOST_PYTHON=1
+		else
+			GUESS_DIR="$1 and $2"
+			POSSIBLE_BOOST_LIBDIRS="$2"
+			POSSIBLE_BOOST_INCDIRS="$1"
+		fi
+	elif [ "$#" -eq 3 ]; then
 		GUESS_DIR="$1 and $2"
 		POSSIBLE_BOOST_LIBDIRS="$2"
 		POSSIBLE_BOOST_INCDIRS="$1"
+		if [ "$3" = "python" ]; then
+			FIND_BOOST_PYTHON=1
+		fi
 	else
 		echo "Wrong number of arguments to try_find_boost"
 		return
- 	fi
-	if [ "$PYTHON_FOUND" ]; then
+	fi
+
+	if [ "$FIND_BOOST_PYTHON" -a "$PYTHON_FOUND" ]; then
+		PYV=`${PYTHON_EXE} -c 'import sys; print(str(sys.version_info.major)+str(sys.version_info.minor))'`
+		PYVM=`${PYTHON_EXE} -c 'import sys; print(sys.version_info.major)'`
+		echo "Looking for $PKG with boost_python for python ${PYV} in $GUESS_DIR..."
+	else
+		echo "Looking for $PKG headers in $GUESS_DIR..."
+	fi
+
+	# Search for boost_python library only if requested
+	if [ "$FIND_BOOST_PYTHON" -a "$PYTHON_FOUND" ]; then
 		for PYV_SUFFIX in $PYV $PYVM $PYV-mt $PYVM-mt ''; do
 			for BOOST_LIBDIR in $POSSIBLE_BOOST_LIBDIRS; do
 				if [ -d $BOOST_LIBDIR -a \( -e $BOOST_LIBDIR/libboost_python${PYV_SUFFIX}.a -o -e $BOOST_LIBDIR/libboost_python${PYV_SUFFIX}.so -o -e $BOOST_LIBDIR/libboost_python${PYV_SUFFIX}.dylib \) ]; then
@@ -186,6 +213,8 @@ try_find_boost(){
 			echo " Unable to locate the boost_python library in $GUESS_DIR"
 		fi
 	fi
+
+	# Always search for boost headers
 	for BOOST_INCDIR in $POSSIBLE_BOOST_INCDIRS; do
 		if [ -d $BOOST_INCDIR -a -e $BOOST_INCDIR/boost/version.hpp ]; then
 			break
@@ -203,6 +232,19 @@ try_find_boost(){
 	if [ "$BOOST_LIBDIR" ]; then
 		echo " Boost library directory is ${BOOST_LIBDIR}"
 	fi
+}
+
+find_numpy(){
+	echo "Looking for numpy..."
+	NUMPY_INCDIR=$(${PYTHON_EXE} -c 'import numpy; print(numpy.get_include())')
+	if [ "$?" -ne 0 ]; then
+		echo " ERROR: Unable to import numpy using ${PYTHON_EXE}"
+		return
+	fi
+	NUMPY_CFLAGS="-I${NUMPY_INCDIR}"
+	NUMPY_FOUND=1
+	echo " Found numpy"
+	echo " Numpy include directory is ${NUMPY_INCDIR}"
 }
 
 ensure_found(){
@@ -259,7 +301,7 @@ elif which "python3" > /dev/null 2>&1; then
 	PYTHON_EXE="python3"
 fi
 
-HELP="Usage: ./configure [OPTION]... 
+HELP="Usage: ./configure [OPTION]...
 
 Installation directories:
   --prefix=PREFIX         install files in PREFIX
@@ -270,7 +312,7 @@ By default, \`make install' will install all the files in
 an installation prefix other than \`$PREFIX' using \`--prefix',
 for instance \`--prefix=\$HOME'.
 
-The following options can be used to maunally specify the 
+The following options can be used to maunally specify the
 locations of dependencies:
   --with-squids=DIR              use the copy of SQuIDS in DIR
                                  assuming headers are in DIR/include
@@ -298,6 +340,10 @@ locations of dependencies:
                                  assuming headers are in DIR/include
                                  and libraries in DIR/lib
 
+For the python bindings the following flags are used:
+  --with-python-bindings         enable python bindings using pybind11 (default)
+  --with-pybind-incdir=DIR       use the copy of pybind11 in DIR
+  --with-boost-python-bindings   use legacy Boost.Python bindings instead
   --with-boost-incdir=DIR        use the copy of Boost in DIR
   --with-boost-libdir=DIR        use the copy of Boost in DIR
   --with-boost=DIR               use the copy of Boost in DIR
@@ -306,7 +352,7 @@ locations of dependencies:
   --python-bin=PYTHON_EXECUTABLE use this python executable
                                  (default is $PYTHON_EXE)
   --python-module-dir=DIR        install python module to this directory, rather
-                                 than the default system location. The special 
+                                 than the default system location. The special
                                  value site.USER_SITE will be automatically
                                  expanded using the python interpreter
 
@@ -389,6 +435,16 @@ do
 	if [ "$TMP" ]; then PYTHON_EXE="${TMP}"; continue; fi
 	TMP=`echo "$var" | sed -n 's/^--python-module-dir=\(.*\)$/\1/p'`
 	if [ "$TMP" ]; then USER_PYTHON_MODULE_DIR="${TMP}"; continue; fi
+
+  # PYTHON BINDINGS #
+	TMP=`echo "$var" | sed -n 's/^--with-python-bindings/true/p'`
+	if [ "$TMP" ]; then PYTHON_BINDINGS=true; continue; fi
+
+	TMP=`echo "$var" | sed -n 's/^--with-pybind-incdir=\(.*\)$/\1/p'`
+	if [ "$TMP" ]; then PYBIND_INCDIR="$TMP"; continue; fi
+
+	TMP=`echo "$var" | sed -n 's/^--with-boost-python-bindings/true/p'`
+	if [ "$TMP" ]; then BOOST_PYTHON_BINDINGS=true; continue; fi
 
   # NUFLUX #
 	TMP=`echo "$var" | sed -n 's/^--with-nuflux=\(.*\)$/\1/p'`
@@ -475,6 +531,8 @@ try_find_python
 
 if [ "$PYTHON_FOUND" != 1 ]; then
 	echo "*** Failed to find python; python bindings will not be built ***"
+	unset PYTHON_BINDINGS
+	unset BOOST_PYTHON_BINDINGS
 else
 	if [ "$USER_PYTHON_MODULE_DIR" ]; then
 		if [ "$USER_PYTHON_MODULE_DIR" == "site.USER_SITE" ]; then
@@ -485,45 +543,75 @@ else
 	fi
 fi
 
-if [ "$BOOST_INCDIR" -a "$BOOST_LIBDIR" ]; then
-#   echo "Checking manually specified boost..."
-#   if [ -d "$BOOST_INCDIR" \
-#     -a -d "$BOOST_LIBDIR" \
-#     -a -e "$BOOST_INCDIR/boost/python.hpp" \
-#     -a -e "$BOOST_LIBDIR/libboost_python${PYTHONVERSIONSIMPLE}.a" ]; then
-#     BOOST_FOUND=1
-#     BOOST_CFLAGS="-I$BOOST_INCDIR"
-#     BOOST_LDFLAGS="-Wl,-rpath -Wl,${BOOST_LIBDIR} -L$BOOST_LIBDIR "
-#   else
-#     echo "Warning: manually specifed boost not found; will attempt auto detection"
-#   fi
-	echo "Checking manually specified boost..."
-	try_find_boost "$BOOST_INCDIR" "$BOOST_LIBDIR"
-	if [ ! "$BOOST_FOUND" ]; then
-		echo "Warning: manually specifed boost not found; will attempt auto detection"
+# Handle python bindings selection
+if [ "$PYTHON_BINDINGS" -a "$BOOST_PYTHON_BINDINGS" ]; then
+	echo "Warning: simultaneously specified pybind11 and Boost.Python bindings options."
+	echo "         Ignoring Boost.Python option. Use only --with-boost-python-bindings for legacy bindings."
+	unset BOOST_PYTHON_BINDINGS
+fi
+
+# If python bindings are requested (either type)
+if [ "$PYTHON_BINDINGS" -o "$BOOST_PYTHON_BINDINGS" ]; then
+	if [ "$PYTHON_FOUND" != 1 ]; then
+		echo "*** Python not found; python bindings will not be built ***"
+		unset PYTHON_BINDINGS
+		unset BOOST_PYTHON_BINDINGS
+	else
+		# Configure for Boost.Python bindings - need to find libboost_python
+		if [ "$BOOST_PYTHON_BINDINGS" ]; then
+			if [ "$BOOST_INCDIR" -a "$BOOST_LIBDIR" ]; then
+				echo "Checking manually specified boost for Boost.Python..."
+				try_find_boost "$BOOST_INCDIR" "$BOOST_LIBDIR" python
+				if [ ! "$BOOST_FOUND" ]; then
+					echo "Warning: manually specified boost not found; will attempt auto detection"
+				fi
+			fi
+			try_find_boost /usr python
+			try_find_boost /usr/local python
+
+			if [ "$BOOST_PYTHON_FOUND" != 1 ]; then
+				echo "*** Failed to find Boost.Python; python bindings will not be built ***"
+				unset BOOST_PYTHON_BINDINGS
+			fi
+		# Configure for pybind11 bindings (default)
+		else
+			if [ "$PYBIND_INCDIR" ]; then
+				if [ ! -d "$PYBIND_INCDIR" -o ! -e "$PYBIND_INCDIR/pybind11/pybind11.h" ]; then
+					echo "*** Failed to find pybind11/pybind11.h in $PYBIND_INCDIR; python bindings will not be built ***"
+					unset PYTHON_BINDINGS
+				else
+					echo "Using provided pybind11 header directory $PYBIND_INCDIR"
+					PYBIND_CFLAGS="-I$PYBIND_INCDIR"
+				fi
+			else
+				echo "Autodetecting pybind11 header directory using ${PYTHON_EXE} executable..."
+				PYBIND_CFLAGS=$(${PYTHON_EXE} -m pybind11 --includes 2>/dev/null)
+				PYBIND_INCLUDE=$(echo "$PYBIND_CFLAGS" | sed -E 's/.*-I([^ ]*pybind11[^ ]*).*/\1/')
+
+				if [ $? -ne 0 ] || [ -z "$PYBIND_CFLAGS" ]; then
+					echo " ERROR: pybind11 not found for Python executable ${PYTHON_EXE}."
+					echo " Please install it using: ${PYTHON_EXE} -m pip install pybind11"
+					echo "*** Failed to find pybind11; python bindings will not be built ***"
+					unset PYTHON_BINDINGS
+				else
+					echo " Found pybind11 headers in $PYBIND_INCLUDE"
+				fi
+			fi
+		fi
+
+		# Find numpy (required for both binding types)
+		if [ "$PYTHON_BINDINGS" -o "$BOOST_PYTHON_BINDINGS" ]; then
+			find_numpy
+			if [ "$NUMPY_FOUND" != 1 ]; then
+				echo "*** Failed to find numpy; python bindings will not be built ***"
+				unset PYTHON_BINDINGS
+				unset BOOST_PYTHON_BINDINGS
+			fi
+		fi
 	fi
 fi
 
-try_find_boost /usr
-try_find_boost /usr/local
-
-if [ -z "$BOOST_LIBDIR" -a  -z "$BOOST_INCDIR" ]; then
-  echo "Error: Specify BOOST library path using --with-boost-libdir and BOOST include path using --with-boost-incdir."
-  exit 1
-fi
-#if [ -z $BOOST_LIBDIR ]; then
-#  echo "Error: Specify BOOST library path using  --with-boost-libdir."
-#  exit 1
-#fi
-if [ -z $BOOST_INCDIR ]; then
-  echo "Error: Specify BOOST include path using  --with-boost-incdir."
-  exit 1
-fi
-
-if [ "$BOOST_PYTHON_FOUND" != 1 ]; then
-	echo "*** Failed to find boost python; python bindings will not be built ***"
-fi
-
+# nuflux detection - must happen before Boost detection since Boost is only needed if nuflux is found
 if [ "$NUFLUX_INCDIR" -a "$NUFLUX_LIBDIR" ]; then
 	echo "Checking manually specified nuflux..."
 	if [ -d "$NUFLUX_INCDIR" \
@@ -542,13 +630,60 @@ fi
 
 find_package nuflux 0.0.1
 
+# Boost headers are only needed if nuflux is found (NFluxInterface uses boost::shared_ptr)
+# libboost_python is only needed if using Boost.Python bindings
+if [ "$NUFLUX_FOUND" ]; then
+	if [ ! "$BOOST_FOUND" ]; then
+		if [ "$BOOST_INCDIR" -a "$BOOST_LIBDIR" ]; then
+			echo "Checking manually specified boost..."
+			try_find_boost "$BOOST_INCDIR" "$BOOST_LIBDIR"
+			if [ ! "$BOOST_FOUND" ]; then
+				echo "Warning: manually specified boost not found; will attempt auto detection"
+			fi
+		fi
+		try_find_boost /usr
+		try_find_boost /usr/local
+	fi
+
+	if [ ! "$BOOST_FOUND" ]; then
+		echo "Error: Boost headers are required when nuflux is enabled (NFluxInterface uses boost::shared_ptr)."
+		echo "       Specify BOOST include path using --with-boost-incdir."
+		exit 1
+	fi
+fi
+
 ## CHECK THINGS ARE GOOD ##
 
-ensure_found squids
-ensure_found nusquids
+# SQuIDS and nuSQuIDS are optional but recommended
+# ensure_found squids  # optional - required by nuSQuIDS
+# ensure_found nusquids  # optional - enables GlashowResonanceCrossSection and tau decay corrections
 #ensure_found nuflux
 ensure_found photospline
-ensure_found boost
+# Boost is only required if nuflux was found
+if [ "$NUFLUX_FOUND" ]; then
+	ensure_found boost
+fi
+
+# Warn about optional dependencies that were not found
+if [ ! "$NUSQUIDS_FOUND" ]; then
+	echo ""
+	echo "WARNING: nuSQuIDS not found. Building without nuSQuIDS support."
+	echo "         The following features will NOT be available:"
+	echo "           - GlashowResonanceCrossSection class"
+	echo "           - Weighter::get_effective_tau_weight()"
+	echo "           - Weighter::get_effective_tau_oneweight()"
+	echo "           - nuSQUIDSAtmFlux and nuSQUIDSFlux (Python)"
+	echo "         To enable, install nuSQuIDS and re-run configure with --with-nusquids=<path>"
+	echo ""
+fi
+
+if [ ! "$NUFLUX_FOUND" ]; then
+	echo ""
+	echo "WARNING: nuflux not found. Building without nuflux support."
+	echo "         The NFluxInterface class will NOT be available."
+	echo "         To enable, install nuflux and re-run configure with --with-nuflux=<path>"
+	echo ""
+fi
 
 if [ ! -d ./build/ ]; then
     mkdir build;
@@ -689,11 +824,17 @@ echo "CFITSIO_LDFLAGS=$CFITSIO_LDFLAGS" >> ./Makefile
 echo "HDF5_CFLAGS=$HDF5_CFLAGS" >> ./Makefile
 echo "HDF5_LDFLAGS=$HDF5_LDFLAGS -lhdf5_hl" >> ./Makefile
 
-if [ "$BOOST_PYTHON_FOUND" ]; then
+# Python bindings configuration
+if [ "$PYTHON_BINDINGS" -o "$BOOST_PYTHON_BINDINGS" ]; then
 	echo "PYTHON_CFLAGS=$PYTHON_CFLAGS" >> ./Makefile
 	echo "PYTHON_LDFLAGS=$PYTHON_LDFLAGS" >> ./Makefile
-	echo "BOOST_PYTHON_LDFLAGS=$BOOST_PYTHON_LDFLAGS" >> ./Makefile
+	echo "NUMPY_CFLAGS=$NUMPY_CFLAGS" >> ./Makefile
 	echo "PYTHON_MODULEDIR=$PYTHON_MODULEDIR" >> ./Makefile
+	if [ "$BOOST_PYTHON_BINDINGS" ]; then
+		echo "BOOST_PYTHON_LDFLAGS=$BOOST_PYTHON_LDFLAGS" >> ./Makefile
+	else
+		echo "PYTHON_CFLAGS+=$PYBIND_CFLAGS" >> ./Makefile
+	fi
 fi
 
 echo '
@@ -780,19 +921,37 @@ uninstall:
 	@rm -f $(PREFIX)/lib/pkgconfig/leptonweighter.pc
 ' >> ./Makefile
 
-if [ "$BOOST_PYTHON_FOUND" ]; then
+# Python bindings Makefile rules
+if [ "$PYTHON_BINDINGS" -o "$BOOST_PYTHON_BINDINGS" ]; then
 	echo '
 
 python : $(PYTHON_LIB)
+' >> ./Makefile
 
+	# Choose between Boost.Python and pybind11
+	if [ "$BOOST_PYTHON_BINDINGS" ]; then
+		echo '
 $(PYTHON_LIB) : build/lepton_weighter_pybi.o $(STAT_PRODUCT)
-	@echo Linking python bindings
+	@echo Linking python bindings - Boost.Python
 	@$(CXX) $(DYN_OPT_PY) build/lepton_weighter_pybi.o -Llib -l$(NAME) $(LDFLAGS) $(BOOST_PYTHON_LDFLAGS) $(PYTHON_LDFLAGS) -o $(PYTHON_LIB)
 
-build/lepton_weighter_pybi.o : private/pybindings/lepton_weighter_pybi.cpp
-	@echo Compiling python bindings
-	@$(CXX) $(CXXFLAGS) -c $(PYTHON_CFLAGS) $(CFLAGS) $< -o $@
+build/lepton_weighter_pybi.o : private/pybindings/lepton_weighter_boost_python.cpp
+	@echo Compiling python bindings - Boost.Python
+	@$(CXX) $(CXXFLAGS) -c -Iprivate/pybindings $(PYTHON_CFLAGS) $(BOOST_CFLAGS) $(NUMPY_CFLAGS) $(CFLAGS) $< -o $@
+' >> ./Makefile
+	else
+		echo '
+$(PYTHON_LIB) : build/lepton_weighter_pybi.o $(STAT_PRODUCT)
+	@echo Linking python bindings - pybind11
+	@$(CXX) $(DYN_OPT_PY) build/lepton_weighter_pybi.o -Llib -l$(NAME) $(LDFLAGS) $(PYTHON_LDFLAGS) -o $(PYTHON_LIB)
 
+build/lepton_weighter_pybi.o : private/pybindings/lepton_weighter_pybind11.cpp
+	@echo Compiling python bindings - pybind11
+	@$(CXX) $(CXXFLAGS) -c $(PYTHON_CFLAGS) $(NUMPY_CFLAGS) $(CFLAGS) $< -o $@
+' >> ./Makefile
+	fi
+
+	echo '
 python-install : $(PYTHON_LIB)
 	@echo Installing python module in $(PYTHON_MODULEDIR)
 	@mkdir -p $(PYTHON_MODULEDIR)
@@ -827,7 +986,10 @@ echo "Done."
 echo
 echo "To build the library, run: make
 After, to build examples: make examples"
-if [ "$BOOST_PYTHON_FOUND" ]; then
-	echo "To build the python bindings run: make python"
+if [ "$PYTHON_BINDINGS" ]; then
+	echo "To build the python bindings (pybind11) run: make python"
+	echo "To install the python bindings run: make python-install"
+elif [ "$BOOST_PYTHON_BINDINGS" ]; then
+	echo "To build the python bindings (Boost.Python) run: make python"
 	echo "To install the python bindings run: make python-install"
 fi

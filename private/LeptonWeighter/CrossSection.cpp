@@ -73,6 +73,7 @@ CrossSectionFromSpline::CrossSectionFromSpline(
 }
 
 
+#ifdef NUS_FOUND
 double GlashowResonanceCrossSection::DoubleDifferentialCrossSection(ParticleType pt, ParticleType finalstate_0, ParticleType finalstate_1, double energy, double x, double y) const {
   if(pt == ParticleType::NuEBar){
     // GR support comes from nusquids. CAD
@@ -80,7 +81,7 @@ double GlashowResonanceCrossSection::DoubleDifferentialCrossSection(ParticleType
     double GeV = 1.e9;
     double e_out = (1-y)*energy;
     double cm2_to_m2 = 1.e-4; //convert from nuSQuIDs units to LW units!
-    
+
     //K. Olive et al. (PDG), Chin. Phys. C38, 090001 (2014)
     double b_muon = 0.1063;
     double b_elec = 0.1071;
@@ -104,6 +105,7 @@ double GlashowResonanceCrossSection::DoubleDifferentialCrossSection(ParticleType
     return 0.;
   }
 }
+#endif
 
 } // namespace LW
 

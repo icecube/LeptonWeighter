@@ -5,10 +5,13 @@
 #include <LeptonWeighter/Event.h>
 #include <LeptonWeighter/MetaWeighter.h>
 #include <LeptonWeighter/Constants.h>
-#include <nuSQuIDS/xsections.h>
 #include <photospline/splinetable.h>
 #include <photospline/bspline.h>
 #include <memory>
+
+#ifdef NUS_FOUND
+#include <nuSQuIDS/xsections.h>
+#endif
 
 namespace LW {
 
@@ -52,6 +55,7 @@ class CrossSectionFromSpline: public CrossSection {
         double DoubleDifferentialCrossSection(ParticleType pt, ParticleType finalstate_0, ParticleType finalstate_1, double energy, double x, double y) const override;
 };
 
+#ifdef NUS_FOUND
 ///\class
 ///\brief Cross section from spline class
 class GlashowResonanceCrossSection: public CrossSection {
@@ -63,6 +67,7 @@ class GlashowResonanceCrossSection: public CrossSection {
         ///\brief Returns single differential cross section in cm^2. The x-argument is ignored;
         double DoubleDifferentialCrossSection(ParticleType pt, ParticleType finalstate_0, ParticleType finalstate_1, double energy, double x, double y) const override;
 };
+#endif
 
 } // namespace LW
 

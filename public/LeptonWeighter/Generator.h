@@ -13,7 +13,10 @@
 #include <LeptonWeighter/Event.h>
 #include <LeptonWeighter/Utils.h>
 #include <LeptonWeighter/LeptonInjectorConfigReader.h>
+
+#ifdef NUS_FOUND
 #include <nuSQuIDS/xsections.h>
+#endif
 
 namespace LW {
 
@@ -137,7 +140,9 @@ class VolumeSimulationDetails : public SimulationDetails{
 ///\brief Generator abstract class
 class Generator: public MetaWeighter<Generator> {
     private:
+#ifdef NUS_FOUND
         nusquids::GlashowResonanceCrossSection grxs;
+#endif
     protected:
         const SimulationDetails sim_details;
     protected:
