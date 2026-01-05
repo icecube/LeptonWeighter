@@ -13,11 +13,30 @@ if [ "$RUNNER_OS" = "Linux" ]; then
     # Install basic build tools
     yum install -y gcc gcc-c++ make cmake wget tar bzip2 zlib-devel
 
-    # Install GSL
+    # Install GSL (use pkg-config name on some systems)
     yum install -y gsl-devel
 
-    # Install HDF5
-    yum install -y hdf5-devel
+    # Install HDF5 - package name varies by arch
+    # On aarch64, we may need to enable PowerTools/CRB repo or build from source
+    yum install -y epel-release || true
+    yum install -y hdf5-devel || {
+        # Try enabling PowerTools repo for aarch64
+        yum install -y dnf-plugins-core || true
+        dnf config-manager --set-enabled powertools || dnf config-manager --set-enabled crb || true
+        yum install -y hdf5-devel || {
+            # Build HDF5 from source as last resort
+            echo "Building HDF5 from source..."
+            cd /tmp
+            wget https://github.com/HDFGroup/hdf5/releases/download/hdf5_1.14.5/hdf5-1.14.5.tar.gz
+            tar xzf hdf5-1.14.5.tar.gz
+            cd hdf5-1.14.5
+            ./configure --prefix=/usr/local --enable-cxx
+            make -j$(nproc)
+            make install
+            ldconfig
+            cd /tmp
+        }
+    }
 
     # Install Boost headers (needed for nuflux interface, optional)
     yum install -y boost-devel || true
@@ -34,6 +53,10 @@ if [ "$RUNNER_OS" = "Linux" ]; then
     wget https://github.com/icecube/photospline/archive/refs/tags/v${PHOTOSPLINE_VERSION}.tar.gz
     tar xzf v${PHOTOSPLINE_VERSION}.tar.gz
     cd photospline-${PHOTOSPLINE_VERSION}
+
+    # Patch CMakeLists.txt to fix cmake_minimum_required for newer CMake versions
+    sed -i 's/cmake_minimum_required(VERSION 2\.[0-9]*)/cmake_minimum_required(VERSION 3.5)/' CMakeLists.txt || true
+
     mkdir build && cd build
     cmake .. -DCMAKE_INSTALL_PREFIX=/usr/local -DCMAKE_BUILD_TYPE=Release
     make -j$(nproc)
@@ -60,6 +83,11 @@ elif [ "$RUNNER_OS" = "macOS" ]; then
     curl -L -o photospline.tar.gz https://github.com/icecube/photospline/archive/refs/tags/v${PHOTOSPLINE_VERSION}.tar.gz
     tar xzf photospline.tar.gz
     cd photospline-${PHOTOSPLINE_VERSION}
+
+    # Patch CMakeLists.txt to fix cmake_minimum_required for newer CMake versions
+    # Modern CMake (3.27+) requires cmake_minimum_required >= 3.5
+    sed -i.bak 's/cmake_minimum_required(VERSION 2\.[0-9]*)/cmake_minimum_required(VERSION 3.5)/' CMakeLists.txt || true
+
     mkdir build && cd build
     # Build without SuiteSparse to avoid the extern "C" header conflict
     cmake .. -DCMAKE_INSTALL_PREFIX=/usr/local -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_STANDARD=17
