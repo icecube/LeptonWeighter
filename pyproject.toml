@@ -4,7 +4,7 @@ build-backend = "scikit_build_core.build"
 
 [project]
 name = "LeptonWeighter"
-version = "1.1.0"          # keep in sync with configure script
+version = "1.10.0"          # keep in sync with configure script
 description = "Weights injected neutrino final states to neutrino fluxes"
 authors = [{name = "Carlos A. Argüelles Delgado", email = "carguelles@fas.harvard.edu"}]
 readme = "README.md"
@@ -25,3 +25,17 @@ tables = ["tables"]
 [tool.scikit-build]
 minimum-version = "0.11"
 wheel.expand-macos-universal-tags = true
+
+# cibuildwheel configuration for building wheels in CI
+[tool.cibuildwheel]
+before-all = "bash {project}/tools/wheels/cibw_before_all.sh {project}"
+skip = "pp*"  # Skip PyPy builds
+
+[tool.cibuildwheel.linux]
+environment = { RUNNER_OS="Linux" }
+repair-wheel-command = "bash ./tools/wheels/repair_wheel_linux.sh {wheel} {dest_dir}"
+
+[tool.cibuildwheel.macos]
+# Set MACOSX_DEPLOYMENT_TARGET to 14.0 to match Homebrew libraries on macOS 14 (Sonoma)
+environment = { RUNNER_OS="macOS", MACOSX_DEPLOYMENT_TARGET="14.0" }
+repair-wheel-command = "bash ./tools/wheels/repair_wheel_macos.sh {wheel} {dest_dir} {delocate_archs}"
