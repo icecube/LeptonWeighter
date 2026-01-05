@@ -36,7 +36,7 @@ for _name in dir(_ext_module):
 del _name
 
 # Version - keep in sync with pyproject.toml and configure
-__version__ = "1.10.0"
+__version__ = "1.1.1"
 
 # Convenience: list commonly used classes for tab completion
 __all__ = [

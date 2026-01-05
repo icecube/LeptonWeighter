@@ -4,7 +4,7 @@ build-backend = "scikit_build_core.build"
 
 [project]
 name = "LeptonWeighter"
-version = "1.10.0"          # keep in sync with configure script
+version = "1.1.1"          # keep in sync with configure script
 description = "Weights injected neutrino final states to neutrino fluxes"
 authors = [{name = "Carlos A. Argüelles Delgado", email = "carguelles@fas.harvard.edu"}]
 readme = "README.md"
