@@ -49,24 +49,25 @@ if [ "$RUNNER_OS" = "Linux" ]; then
     export PATH="/usr/local/bin:$PATH"
 
 elif [ "$RUNNER_OS" = "macOS" ]; then
-    # On macOS, use Homebrew
-    brew install gsl hdf5 cfitsio suite-sparse boost
+    # On macOS, use Homebrew for basic dependencies
+    # Note: Don't install suite-sparse from brew - it has header issues with photospline
+    brew install gsl hdf5 cfitsio boost
 
-    # Install photospline via homebrew tap or build from source
-    # First try the tap
-    brew tap icecube/icecube || true
-    brew install photospline || {
-        # Build from source if tap fails
-        PHOTOSPLINE_VERSION="2.3.1"
-        cd /tmp
-        curl -L -o photospline.tar.gz https://github.com/icecube/photospline/archive/refs/tags/v${PHOTOSPLINE_VERSION}.tar.gz
-        tar xzf photospline.tar.gz
-        cd photospline-${PHOTOSPLINE_VERSION}
-        mkdir build && cd build
-        cmake .. -DCMAKE_INSTALL_PREFIX=/usr/local -DCMAKE_BUILD_TYPE=Release
-        make -j$(sysctl -n hw.ncpu)
-        sudo make install
-    }
+    # Build photospline from source (avoid Homebrew version due to header compatibility issues)
+    # The Homebrew photospline + suite-sparse combo has extern "C" issues with C++ complex headers
+    PHOTOSPLINE_VERSION="2.3.1"
+    cd /tmp
+    curl -L -o photospline.tar.gz https://github.com/icecube/photospline/archive/refs/tags/v${PHOTOSPLINE_VERSION}.tar.gz
+    tar xzf photospline.tar.gz
+    cd photospline-${PHOTOSPLINE_VERSION}
+    mkdir build && cd build
+    # Build without SuiteSparse to avoid the extern "C" header conflict
+    cmake .. -DCMAKE_INSTALL_PREFIX=/usr/local -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_STANDARD=17
+    make -j$(sysctl -n hw.ncpu)
+    sudo make install
+
+    echo "Photospline installed from source"
+    /usr/local/bin/photospline-config --version
 fi
 
 echo "Dependencies installed successfully"
