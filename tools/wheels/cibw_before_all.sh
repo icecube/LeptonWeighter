@@ -11,7 +11,7 @@ if [ "$RUNNER_OS" = "Linux" ]; then
     # manylinux_2_28 is based on AlmaLinux 8
 
     # Install basic build tools
-    yum install -y gcc gcc-c++ make cmake wget tar bzip2 zlib-devel
+    yum install -y gcc gcc-c++ make cmake wget tar bzip2 zlib-devel zip unzip
 
     # Install GSL (use pkg-config name on some systems)
     yum install -y gsl-devel
