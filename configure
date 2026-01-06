@@ -65,50 +65,83 @@ try_find_photospline(){
 try_find_python(){
 	echo "Looking for python"
 
-	if which ${PYTHON_EXE} > /dev/null 2>&1; then
-		PYTHON_EXE=$(which ${PYTHON_EXE} 2>/dev/null)
+	if command -v "${PYTHON_EXE}" > /dev/null 2>&1; then
+		PYTHON_EXE=$(command -v ${PYTHON_EXE} 2>/dev/null)
 		echo " Using python executable ${PYTHON_EXE}"
 	else
 		echo " ${PYTHON_EXE} is not a valid python executable"
 		return
 	fi
 
-	PYTHON_VERSION=`${PYTHON_EXE} -c 'import sys; print(str(sys.version_info.major)+"."+str(sys.version_info.minor))'`
+	PYTHON_VERSION=$("${PYTHON_EXE}" -c 'import sys; print(str(sys.version_info.major)+"."+str(sys.version_info.minor))')
 	if [ "$?" -ne 0 ]; then
-		echo "Unable to use python executable ${PYTHON_EXE} (version check failed)"
+		echo " ERROR: Unable to use python executable ${PYTHON_EXE} (version check failed)"
 		return
 	fi
-	PYTHONVERSIONSIMPLE=`${PYTHON_EXE} -c 'import sys; print(str(sys.version_info.major)+str(sys.version_info.minor))'`
-	
-	PYTHON_INCDIR=`${PYTHON_EXE} -c 'from distutils import sysconfig; print(sysconfig.get_python_inc())'`
-	if [ -d "$PYTHON_INCDIR" ]; then
+	PYTHONVERSIONSIMPLE=$("${PYTHON_EXE}" -c 'import sys; print(str(sys.version_info.major)+str(sys.version_info.minor))')
+
+	# Use sysconfig (Python 3.2+) with fallback to distutils.sysconfig (deprecated in 3.10, removed in 3.12)
+	PYTHON_INCDIR=$(${PYTHON_EXE} -c "try:
+ import sysconfig
+ print(sysconfig.get_path('include'))
+except ImportError:
+ from distutils.sysconfig import get_python_inc
+ print(get_python_inc())")
+	if [ -d "$PYTHON_INCDIR" -a -f "${PYTHON_INCDIR}/Python.h" ]; then
 		echo " Found python include dir $PYTHON_INCDIR"
 	else
-		echo " Unable to locate the python include dir"
-		return
+		# Sometimes sysconfig.get_path("include") doesn't work. Try using base_prefix.
+		PYTHONLIBSUFFIX=$("${PYTHON_EXE}" -c "try:
+ import sysconfig
+ print(sysconfig.get_config_var('ABIFLAGS') or '')
+except:
+ print('')")
+		PYTHON_INCDIR=$("${PYTHON_EXE}" -c 'import sys; print(sys.base_prefix)')"/include/python${PYTHON_VERSION}${PYTHONLIBSUFFIX}"
+		if [ -d "$PYTHON_INCDIR" -a -f "${PYTHON_INCDIR}/Python.h" ]; then
+			echo " Found python include dir $PYTHON_INCDIR"
+		else
+			echo " Unable to locate the python include dir"
+			return
+		fi
 	fi
 
 	# This is the directory to which libraries should be installed for python to find them
-	PYTHON_MODULEDIR=`${PYTHON_EXE} -c 'from distutils.sysconfig import get_python_lib; print(get_python_lib(plat_specific=True, standard_lib=False))'`
+	PYTHON_MODULEDIR=$(${PYTHON_EXE} -c "try:
+ import sysconfig
+ print(sysconfig.get_path('platlib'))
+except ImportError:
+ from distutils.sysconfig import get_python_lib
+ print(get_python_lib(plat_specific=True, standard_lib=False))")
 	if [ "$PYTHON_MODULEDIR" ]; then
 		echo " Python module install dir is $PYTHON_MODULEDIR"
 	else
 		echo " Unable to locate the python module dir"
 		return
 	fi
-	
-	# This is the directory that python claims contains its standard library, 
+
+	# Get ABI flags (e.g., 'm' for pymalloc in older Python)
+	PYTHONLIBSUFFIX=$("${PYTHON_EXE}" -c "try:
+ import sysconfig
+ print(sysconfig.get_config_var('ABIFLAGS') or '')
+except:
+ print('')")
+
+	# This is the directory that python claims contains its standard library,
 	# which may or may not include the actual libpython
-	PYTHON_STDLIBDIR=`${PYTHON_EXE} -c 'from distutils import sysconfig; print(sysconfig.get_python_lib(plat_specific=True,standard_lib=True))'`
-	# This may contain a suffix which appears after the version like in 'libpython3.6m'
-	# See https://www.python.org/dev/peps/pep-3149/#proposal
-	PYTHONLIBSUFFIX=`${PYTHON_EXE} -c 'from distutils import sysconfig; print(sysconfig.build_flags)' 2>/dev/null`
+	PYTHON_STDLIBDIR=$("${PYTHON_EXE}" -c "try:
+ import sysconfig
+ print(sysconfig.get_path('platstdlib'))
+except ImportError:
+ from distutils.sysconfig import get_python_lib
+ print(get_python_lib(plat_specific=True, standard_lib=True))")
 
 	# Here we just try to guess every location anyone has ever seen a libpython in the wild
-	POSSIBLE_PYTHON_LIBDIRS="/lib /lib64 /usr/lib /usr/lib64 /usr/local/lib /usr/local/lib64 ${PYTHON_STDLIBDIR} ${PYTHON_STDLIBDIR}/lib"
-	# sometimes Apple puts a symlink in ${PYTHONSTDLIBDIR}/lib, sometimes it doesn't
-	TMP=`echo "$PYTHON_STDLIBDIR" | sed -n s'|\(.*/lib\)/python'"${PYTHON_VERSION}"'|\1|p'`
-	if [ "$TMP" ]; then POSSIBLE_PYTHON_LIBDIRS="${POSSIBLE_PYTHON_LIBDIRS} ${TMP}"; fi
+	POSSIBLE_PYTHON_LIBDIRS="${PYTHON_STDLIBDIR} ${PYTHON_STDLIBDIR}/lib"
+	# Using venv makes sysconfig.get_path("platstdlib") point to a directory which often does not
+	# contain the python library itself, so try off of the base prefix as well
+	POSSIBLE_PYTHON_LIBDIRS="$POSSIBLE_PYTHON_LIBDIRS "$("${PYTHON_EXE}" -c 'import sys; print(sys.base_prefix)')"/lib"
+	# or maybe the python library is just in a common system location?
+	POSSIBLE_PYTHON_LIBDIRS="${POSSIBLE_PYTHON_LIBDIRS} /lib /lib64 /usr/lib /usr/lib64 /usr/local/lib /usr/local/lib64"
 	# Ubuntu is special, of course
 	if uname -a | grep -i 'ubuntu' > /dev/null; then
 		POSSIBLE_PYTHON_LIBDIRS="${POSSIBLE_PYTHON_LIBDIRS} /usr/lib/$(uname -i)-linux-gnu"
@@ -130,12 +163,17 @@ try_find_python(){
 				fi
 			fi
 		done
+		if [ "$PYTHON_LIBRARY" ]; then break; fi
 	done
 	if [ -e "$PYTHON_LIBRARY" ]; then
 		echo " Found python library $PYTHON_LIBRARY"
+		PYTHON_LDFLAGS="-L${PYTHON_LIBDIR} -l$(echo "$PYTHON_LIBRARY" | sed 's|.*lib\(python.*\)\.[a-z]*|\1|')"
 	else
-		echo " Unable to locate the python library"
-		return
+		# For pybind11 builds, we don't actually need libpython - pybind11 modules
+		# use -undefined dynamic_lookup on macOS or no python linking on Linux.
+		# This is common in manylinux containers where libpython isn't available.
+		echo " Note: libpython not found (this is OK for pybind11 builds)"
+		PYTHON_LDFLAGS=""
 	fi
 
 	PYTHON_CFLAGS="-I${PYTHON_INCDIR}"
@@ -143,8 +181,6 @@ try_find_python(){
 	# This avoids issues with multiple Python interpreters and is the recommended approach
 	if [ "$OS_NAME" = "Darwin" ]; then
 		PYTHON_LDFLAGS="-undefined dynamic_lookup"
-	else
-		PYTHON_LDFLAGS="-L${PYTHON_LIBDIR} -l$(echo "$PYTHON_LIBRARY" | sed 's|.*lib\(python.*\)\.[a-z]*|\1|')"
 	fi
 	PYTHON_FOUND=1
 }
