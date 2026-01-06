@@ -55,7 +55,9 @@ if [ "$RUNNER_OS" = "Linux" ]; then
     cd photospline-${PHOTOSPLINE_VERSION}
 
     # Patch CMakeLists.txt to fix cmake_minimum_required for newer CMake versions
-    sed -i 's/cmake_minimum_required(VERSION 2\.[0-9]*)/cmake_minimum_required(VERSION 3.5)/' CMakeLists.txt || true
+    # photospline uses VERSION 3.1.0 which is too old for modern CMake (3.27+)
+    sed -i 's/cmake_minimum_required *(VERSION 3\.1/cmake_minimum_required(VERSION 3.5/' CMakeLists.txt || true
+    sed -i 's/cmake_policy(VERSION 3\.1/cmake_policy(VERSION 3.5/' CMakeLists.txt || true
 
     mkdir build && cd build
     cmake .. -DCMAKE_INSTALL_PREFIX=/usr/local -DCMAKE_BUILD_TYPE=Release
@@ -85,8 +87,9 @@ elif [ "$RUNNER_OS" = "macOS" ]; then
     cd photospline-${PHOTOSPLINE_VERSION}
 
     # Patch CMakeLists.txt to fix cmake_minimum_required for newer CMake versions
-    # Modern CMake (3.27+) requires cmake_minimum_required >= 3.5
-    sed -i.bak 's/cmake_minimum_required(VERSION 2\.[0-9]*)/cmake_minimum_required(VERSION 3.5)/' CMakeLists.txt || true
+    # photospline uses VERSION 3.1.0 which is too old for modern CMake (3.27+)
+    sed -i.bak 's/cmake_minimum_required *(VERSION 3\.1/cmake_minimum_required(VERSION 3.5/' CMakeLists.txt || true
+    sed -i.bak 's/cmake_policy(VERSION 3\.1/cmake_policy(VERSION 3.5/' CMakeLists.txt || true
 
     mkdir build && cd build
     # Build without SuiteSparse to avoid the extern "C" header conflict
