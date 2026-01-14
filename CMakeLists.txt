@@ -158,11 +158,13 @@ install(FILES ${LW_INSTALL_PREFIX}/lib/LeptonWeighter.so
         OPTIONAL)
 
 # 3. Copy shared library needed by extension → LeptonWeighter/
-file(GLOB LW_DYLIBS "${LW_INSTALL_PREFIX}/lib/libLeptonWeighter*.dylib")
-file(GLOB LW_SO_LIBS "${LW_INSTALL_PREFIX}/lib/libLeptonWeighter*.so*")
-install(FILES ${LW_DYLIBS} ${LW_SO_LIBS}
+# Use DIRECTORY with FILES_MATCHING because file(GLOB) is evaluated at configure time
+# and the libraries don't exist yet at that point
+install(DIRECTORY ${LW_INSTALL_PREFIX}/lib/
         DESTINATION LeptonWeighter
-        OPTIONAL)
+        FILES_MATCHING
+        PATTERN "libLeptonWeighter*.dylib"
+        PATTERN "libLeptonWeighter*.so*")
 
 # -------------- macOS Library Path Fixups -----------------------------------
 # For wheel distribution, fix library paths to use @loader_path
