@@ -81,4 +81,8 @@ zip -q -r "$TMPDIR/$WHEEL_NAME" ./*
 
 # Run delocate on the fixed wheel
 # Use --ignore-missing-dependencies to handle libraries that may not be found in expected locations
-delocate-wheel --require-archs "$DELOCATE_ARCHS" -w "$DEST_DIR" -v --ignore-missing-dependencies "$TMPDIR/$WHEEL_NAME"
+# Use --exclude to prevent delocate from moving libLeptonWeighter.*.dylib
+# These libraries must stay in LeptonWeighter/ directory, not be moved to lib/ or .dylibs/
+delocate-wheel --require-archs "$DELOCATE_ARCHS" -w "$DEST_DIR" -v --ignore-missing-dependencies \
+    --exclude libLeptonWeighter \
+    "$TMPDIR/$WHEEL_NAME"
