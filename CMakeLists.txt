@@ -125,14 +125,23 @@ ExternalProject_Add(leptonweighter_core
 install(DIRECTORY ${LW_INSTALL_PREFIX}/include/
         DESTINATION include)
 
-# Install the compiled C++ library (.a/.so/.dylib) - exclude Python extension and libLeptonWeighter
-# libLeptonWeighter is installed to LeptonWeighter/ directory below to be next to the Python extension
-install(DIRECTORY ${LW_INSTALL_PREFIX}/lib/
-        DESTINATION lib
-        PATTERN "LeptonWeighter.so" EXCLUDE
-        PATTERN "libLeptonWeighter*" EXCLUDE
-        PATTERN "*.pyc" EXCLUDE
-        PATTERN "__pycache__" EXCLUDE)
+# Install the compiled C++ library (.a/.so/.dylib) - exclude Python extension and libLeptonWeighter on macOS
+# On macOS: libLeptonWeighter.dylib must ONLY be in LeptonWeighter/ directory (not lib/)
+# On Linux: libLeptonWeighter.so can be in lib/ for auditwheel, and will also be in LeptonWeighter/
+if(APPLE)
+    install(DIRECTORY ${LW_INSTALL_PREFIX}/lib/
+            DESTINATION lib
+            PATTERN "LeptonWeighter.so" EXCLUDE
+            PATTERN "libLeptonWeighter*" EXCLUDE
+            PATTERN "*.pyc" EXCLUDE
+            PATTERN "__pycache__" EXCLUDE)
+else()
+    install(DIRECTORY ${LW_INSTALL_PREFIX}/lib/
+            DESTINATION lib
+            PATTERN "LeptonWeighter.so" EXCLUDE
+            PATTERN "*.pyc" EXCLUDE
+            PATTERN "__pycache__" EXCLUDE)
+endif()
 
 # -------------- Installation of Python Library ------------------------------
 
