@@ -125,10 +125,12 @@ ExternalProject_Add(leptonweighter_core
 install(DIRECTORY ${LW_INSTALL_PREFIX}/include/
         DESTINATION include)
 
-# Install the compiled C++ library (.a/.so/.dylib) - exclude Python extension
+# Install the compiled C++ library (.a/.so/.dylib) - exclude Python extension and libLeptonWeighter
+# libLeptonWeighter is installed to LeptonWeighter/ directory below to be next to the Python extension
 install(DIRECTORY ${LW_INSTALL_PREFIX}/lib/
         DESTINATION lib
         PATTERN "LeptonWeighter.so" EXCLUDE
+        PATTERN "libLeptonWeighter*" EXCLUDE
         PATTERN "*.pyc" EXCLUDE
         PATTERN "__pycache__" EXCLUDE)
 

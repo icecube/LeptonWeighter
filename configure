@@ -297,7 +297,7 @@ ensure_found(){
 
 PREFIX=/usr/local
 
-VERSION_NUM=100102
+VERSION_NUM=100103
 VERSION_MAJOR=$(echo $VERSION_NUM | awk '{print int($1/100000)}')
 VERSION_MINOR=$(echo $VERSION_NUM | awk '{print int($1/100)%1000}')
 VERSION_PATCH=$(echo $VERSION_NUM | awk '{print $1%100}')
