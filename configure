@@ -395,6 +395,13 @@ For the python bindings the following flags are used:
                                  value site.USER_SITE will be automatically
                                  expanded using the python interpreter
 
+For the Julia bindings the following flags are used:
+  --with-julia-bindings          enable Julia bindings using CxxWrap.jl
+  --julia-bin=JULIA_EXECUTABLE   use this Julia executable
+                                 (default is julia)
+  --with-cxxwrap-prefix=DIR      use the CxxWrap installation in DIR
+                                 (auto-detected from Julia if not specified)
+
 Some influential environment variables:
 CC          C compiler command
 CXX         C++ compiler command
@@ -496,6 +503,16 @@ do
 	if [ "$TMP" ]; then NUFLUX_LIBDIR="$TMP"; continue; fi
 	TMP=`echo "$var" | sed -n 's/^--with-nuflux-incdir=\(.*\)$/\1/p'`
 	if [ "$TMP" ]; then NUFLUX_INCDIR="$TMP"; continue; fi
+
+  # JULIA BINDINGS #
+	TMP=`echo "$var" | sed -n 's/^--with-julia-bindings/true/p'`
+	if [ "$TMP" ]; then JULIA_BINDINGS=true; continue; fi
+
+	TMP=`echo "$var" | sed -n 's/^--julia-bin=\(.*\)$/\1/p'`
+	if [ "$TMP" ]; then JULIA_EXE="${TMP}"; continue; fi
+
+	TMP=`echo "$var" | sed -n 's/^--with-cxxwrap-prefix=\(.*\)$/\1/p'`
+	if [ "$TMP" ]; then CXXWRAP_PREFIX="${TMP}"; continue; fi
 
   # KILL #
 	echo "config.sh: Unknown or malformed option '$var'" 1>&2
@@ -693,6 +710,84 @@ if [ "$NUFLUX_FOUND" ]; then
 	fi
 fi
 
+# Julia bindings configuration
+if [ "$JULIA_BINDINGS" ]; then
+	if [ ! "$JULIA_EXE" ]; then
+		JULIA_EXE="julia"
+	fi
+
+	echo "Looking for Julia..."
+	if command -v "${JULIA_EXE}" > /dev/null 2>&1; then
+		JULIA_EXE=$(command -v ${JULIA_EXE} 2>/dev/null)
+		echo " Using Julia executable ${JULIA_EXE}"
+	else
+		echo " ${JULIA_EXE} is not a valid Julia executable"
+		echo "*** Failed to find Julia; Julia bindings will not be built ***"
+		unset JULIA_BINDINGS
+	fi
+
+	if [ "$JULIA_BINDINGS" ]; then
+		JULIA_VERSION=$("${JULIA_EXE}" -e 'print(VERSION)')
+		echo " Found Julia version ${JULIA_VERSION}"
+
+		# Get CxxWrap prefix
+		if [ ! "$CXXWRAP_PREFIX" ]; then
+			echo " Autodetecting CxxWrap.jl installation..."
+			CXXWRAP_PREFIX=$("${JULIA_EXE}" -e 'using CxxWrap; print(CxxWrap.prefix_path())' 2>/dev/null)
+			if [ $? -ne 0 ] || [ -z "$CXXWRAP_PREFIX" ]; then
+				echo " ERROR: CxxWrap.jl not found. Please install it using:"
+				echo "        julia -e 'using Pkg; Pkg.add(\"CxxWrap\")'"
+				echo "*** Failed to find CxxWrap; Julia bindings will not be built ***"
+				unset JULIA_BINDINGS
+			else
+				echo " Found CxxWrap prefix: ${CXXWRAP_PREFIX}"
+			fi
+		else
+			echo " Using provided CxxWrap prefix: ${CXXWRAP_PREFIX}"
+		fi
+	fi
+
+	if [ "$JULIA_BINDINGS" ]; then
+		# Get Julia include directory
+		JULIA_INCDIR=$("${JULIA_EXE}" -e 'print(joinpath(Sys.BINDIR, Base.INCLUDEDIR, "julia"))')
+		if [ -d "$JULIA_INCDIR" -a -f "${JULIA_INCDIR}/julia.h" ]; then
+			echo " Found Julia include dir: ${JULIA_INCDIR}"
+		else
+			# Try alternative location
+			JULIA_INCDIR=$("${JULIA_EXE}" -e 'print(joinpath(dirname(Sys.BINDIR), "include", "julia"))')
+			if [ -d "$JULIA_INCDIR" -a -f "${JULIA_INCDIR}/julia.h" ]; then
+				echo " Found Julia include dir: ${JULIA_INCDIR}"
+			else
+				echo " Warning: Julia include directory not found"
+				# Try to continue anyway - CxxWrap may handle this
+			fi
+		fi
+
+		# Get Julia library directory
+		JULIA_LIBDIR=$("${JULIA_EXE}" -e 'print(joinpath(Sys.BINDIR, Base.LIBDIR))')
+		if [ ! -d "$JULIA_LIBDIR" ]; then
+			JULIA_LIBDIR=$("${JULIA_EXE}" -e 'print(joinpath(dirname(Sys.BINDIR), "lib"))')
+		fi
+		if [ -d "$JULIA_LIBDIR" ]; then
+			echo " Found Julia library dir: ${JULIA_LIBDIR}"
+		fi
+
+		# Build CxxWrap flags
+		CXXWRAP_INCDIR="${CXXWRAP_PREFIX}/include"
+		CXXWRAP_LIBDIR="${CXXWRAP_PREFIX}/lib"
+		CXXWRAP_CFLAGS="-I${CXXWRAP_INCDIR} -I${JULIA_INCDIR}"
+		CXXWRAP_LDFLAGS="-L${CXXWRAP_LIBDIR} -lcxxwrap_julia -lcxxwrap_julia_stl -L${JULIA_LIBDIR} -ljulia"
+
+		# On macOS, use rpath
+		if [ "$OS_NAME" = "Darwin" ]; then
+			CXXWRAP_LDFLAGS="${CXXWRAP_LDFLAGS} -Wl,-rpath,${CXXWRAP_LIBDIR} -Wl,-rpath,${JULIA_LIBDIR}"
+		fi
+
+		JULIA_FOUND=1
+		echo " Julia bindings will be built"
+	fi
+fi
+
 ## CHECK THINGS ARE GOOD ##
 
 # SQuIDS and nuSQuIDS are optional but recommended
@@ -884,6 +979,15 @@ if [ "$PYTHON_BINDINGS" -o "$BOOST_PYTHON_BINDINGS" ]; then
 	fi
 fi
 
+# Julia bindings configuration
+if [ "$JULIA_BINDINGS" ]; then
+	echo "JULIA_EXE=$JULIA_EXE" >> ./Makefile
+	echo "CXXWRAP_CFLAGS=$CXXWRAP_CFLAGS" >> ./Makefile
+	echo "CXXWRAP_LDFLAGS=$CXXWRAP_LDFLAGS" >> ./Makefile
+	echo "JULIA_INCDIR=$JULIA_INCDIR" >> ./Makefile
+	echo "JULIA_LIBDIR=$JULIA_LIBDIR" >> ./Makefile
+fi
+
 echo '
 
 INC_LW=$(PATH_LW)/public
@@ -1022,6 +1126,49 @@ python-uninstall : $(PYTHON_LIB)
 ' >> ./Makefile
 fi
 
+# Julia bindings Makefile rules
+if [ "$JULIA_BINDINGS" ]; then
+	echo '
+
+JULIA_LIB:=lib/libLeptonWeighterJL$(DYN_SUFFIX)
+
+julia : $(JULIA_LIB)
+
+$(JULIA_LIB) : build/lepton_weighter_jlbi.o $(STAT_PRODUCT)
+	@echo Linking Julia bindings - CxxWrap
+	@$(CXX) $(DYN_OPT) build/lepton_weighter_jlbi.o -Llib -l$(NAME) $(LDFLAGS) $(CXXWRAP_LDFLAGS) -o $(JULIA_LIB)
+
+build/lepton_weighter_jlbi.o : private/jlbindings/lepton_weighter_cxxwrap.cpp
+	@echo Compiling Julia bindings - CxxWrap
+	@$(CXX) -std=c++17 -O3 -c $(CXXWRAP_CFLAGS) $(CFLAGS) $< -o $@
+
+julia-install : $(JULIA_LIB)
+	@echo Installing Julia library in $(PREFIX)/lib
+	@mkdir -p $(PREFIX)/lib
+	@cp $(JULIA_LIB) $(PREFIX)/lib
+	@echo Installing Julia package in julia/LeptonWeighter
+	@echo "Set LEPTONWEIGHTER_JL_LIB=$(PREFIX)/lib/libLeptonWeighterJL$(DYN_SUFFIX) to use the package"
+
+julia-uninstall :
+	@echo Removing Julia library from $(PREFIX)/lib
+	@rm -f $(PREFIX)/lib/libLeptonWeighterJL$(DYN_SUFFIX)
+
+julia-test : $(JULIA_LIB)
+	@echo Running Julia tests
+	@LEPTONWEIGHTER_JL_LIB=$(PATH_LW)/$(JULIA_LIB) $(JULIA_EXE) --project=julia/LeptonWeighter -e "using Pkg; Pkg.test()"
+
+julia-clean :
+	@echo Erasing Julia build artifacts
+	@rm -f $(PATH_LW)/build/lepton_weighter_jlbi.o $(PATH_LW)/$(JULIA_LIB)
+
+' >> ./Makefile
+
+	# Update clean target to include Julia artifacts
+	echo '
+clean: julia-clean
+' >> ./Makefile
+fi
+
 mkdir -p test
 echo "
 export CXX=\"${CXX}\"
@@ -1050,4 +1197,9 @@ if [ "$PYTHON_BINDINGS" ]; then
 elif [ "$BOOST_PYTHON_BINDINGS" ]; then
 	echo "To build the python bindings (Boost.Python) run: make python"
 	echo "To install the python bindings run: make python-install"
+fi
+if [ "$JULIA_BINDINGS" ]; then
+	echo "To build the Julia bindings (CxxWrap) run: make julia"
+	echo "To run Julia tests run: make julia-test"
+	echo "To install the Julia bindings run: make julia-install"
 fi
